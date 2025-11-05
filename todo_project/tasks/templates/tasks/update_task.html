@@ -1,0 +1,15 @@
+{% extends 'tasks/base.html' %}
+
+{% block title %}Edit Task{% endblock %}
+
+{% block content %}
+  <h2>Edit Task</h2>
+  <form method="POST" class="card p-4 shadow-sm">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div style="display: flex;">
+        <button type="submit" class="btn btn-success" style="width: fit-content; margin-right: 1rem;">Save Changes</button>
+        <a href="/" class="btn btn-secondary" style="width:fit-content; height:fit-content;">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

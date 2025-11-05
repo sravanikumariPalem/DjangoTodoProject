@@ -1,0 +1,45 @@
+{% extends 'tasks/base.html' %}
+
+{% block title %}My To-Do List{% endblock %}
+
+{% block content %}
+  <h1 class="text-center mb-4">📝 My To-Do List</h1>
+
+  <!-- Add Task Form -->
+  <div class="card mb-4 shadow-sm">
+    <div class="card-body">
+        <form method="POST" class="card p-4 mb-4 shadow-sm">
+            {% csrf_token %}
+            {{form.as_p}}
+            <button type="submit" class="btn btn-primary" >Add Task</button>
+        </form>
+    </div>
+  </div>
+  <div>
+    <form method="GET" action="{% url 'index' %}" class="mb-3" style="display: flex;">
+      {{ search_form.search }}
+      <button type="submit" class="btn btn-primary" style="margin-left: 0.2rem;">Search</button>
+    </form>
+  </div>
+
+  <!-- Task List -->
+  <ul class="list-group">
+    {% for task in tasks %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <div>
+          {% if task.complete %}
+            <s>{{ task.title }}</s>
+          {% else %}
+            {{ task.title }}
+          {% endif %}
+        </div>
+        <div>
+          <a href="{% url 'update_task' task.id %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+          <a href="{% url 'delete_task' task.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
+        </div>
+      </li>
+    {% empty %}
+      <li class="list-group-item text-center text-muted">No tasks yet</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
