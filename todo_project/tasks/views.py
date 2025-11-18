@@ -1,11 +1,16 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse  # <-- ADD THIS
+
 from .models import Task
-from .forms import TaskForm, CreateUserForm
+from .forms import TaskForm, CreateUserForm, SearchForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
-from .forms import SearchForm
+
+from django.conf import settings
+from .rag_utils import index_documents, get_qa_chain, extract_text  # <-- add extract_text
+import os
 # Create your views here.
 
 @login_required(login_url='login')
@@ -107,9 +112,6 @@ def forgotPassword(request):
     return render(request, 'tasks/forgot_password.html')
 
 # ---------------- RAG VIEWS ---------------- #
-from django.conf import settings
-from .rag_utils import index_documents, get_qa_chain
-import os
 @login_required(login_url='login')
 def rag_upload(request):
     if request.method == "POST" and request.FILES.getlist("files"):
@@ -121,17 +123,23 @@ def rag_upload(request):
 
         for uploaded_file in files:
             file_path = os.path.join(media_path, uploaded_file.name)
+
+            # Save file
             with open(file_path, "wb+") as f:
                 for chunk in uploaded_file.chunks():
                     f.write(chunk)
 
+            # Extract text from this file and append
             full_text += extract_text(file_path) + "\n"
 
         if not full_text.strip():
             messages.error(request, "Unable to read uploaded files.")
             return redirect("rag_upload")
 
-        index_documents(full_text, persist_directory=os.path.join(settings.BASE_DIR, "chroma_db"))
+        # Append to existing Chroma DB (or create new)
+        db_path = os.path.join(settings.BASE_DIR, "chroma_db")
+        index_documents(full_text, persist_directory=db_path)
+
         messages.success(request, "Documents uploaded and indexed!")
         return redirect("rag_chat")
 
@@ -149,12 +157,14 @@ def rag_query(request):
         return JsonResponse({"error": "POST only"}, status=405)
 
     import json
-    data = json.loads(request.body)
+    data = json.loads(request.body or "{}")
     query = data.get("query", "").strip()
 
     if not query:
         return JsonResponse({"answer": ""})
 
-    qa_chain = get_qa_chain(persist_directory=os.path.join(settings.BASE_DIR, "chroma_db"))
+    db_path = os.path.join(settings.BASE_DIR, "chroma_db")
+    qa_chain = get_qa_chain(persist_directory=db_path)
+
     answer = qa_chain(query)
-    return JsonResponse({"answer": answer})
+    return JsonResponse({"answer": str(answer)})
