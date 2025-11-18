@@ -105,3 +105,56 @@ def forgotPassword(request):
         messages.success(request, 'Password reset successful. Please log in with your new password.')
         return redirect('login')
     return render(request, 'tasks/forgot_password.html')
+
+# ---------------- RAG VIEWS ---------------- #
+from django.conf import settings
+from .rag_utils import index_documents, get_qa_chain
+import os
+@login_required(login_url='login')
+def rag_upload(request):
+    if request.method == "POST" and request.FILES.getlist("files"):
+        files = request.FILES.getlist("files")
+        full_text = ""
+
+        media_path = os.path.join(settings.BASE_DIR, "media")
+        os.makedirs(media_path, exist_ok=True)
+
+        for uploaded_file in files:
+            file_path = os.path.join(media_path, uploaded_file.name)
+            with open(file_path, "wb+") as f:
+                for chunk in uploaded_file.chunks():
+                    f.write(chunk)
+
+            full_text += extract_text(file_path) + "\n"
+
+        if not full_text.strip():
+            messages.error(request, "Unable to read uploaded files.")
+            return redirect("rag_upload")
+
+        index_documents(full_text, persist_directory=os.path.join(settings.BASE_DIR, "chroma_db"))
+        messages.success(request, "Documents uploaded and indexed!")
+        return redirect("rag_chat")
+
+    return render(request, "tasks/rag_upload.html")
+
+
+@login_required(login_url='login')
+def rag_chat(request):
+    return render(request, "tasks/rag_chat.html")
+
+
+@login_required(login_url='login')
+def rag_query(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=405)
+
+    import json
+    data = json.loads(request.body)
+    query = data.get("query", "").strip()
+
+    if not query:
+        return JsonResponse({"answer": ""})
+
+    qa_chain = get_qa_chain(persist_directory=os.path.join(settings.BASE_DIR, "chroma_db"))
+    answer = qa_chain(query)
+    return JsonResponse({"answer": answer})
